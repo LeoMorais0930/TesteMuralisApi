@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TesteMuralisApi.Data;
 using TesteMuralisApi.Mapper;
@@ -11,7 +10,6 @@ builder.Services.AddControllers();
 var connectionString = builder.Configuration.GetConnectionString("PostgreSqlConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
-
 
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
