@@ -27,9 +27,9 @@ namespace TesteMuralisApi.Controllers
         }
         
         /// <summary>
-        /// bostamijo
+        /// Teste
         /// </summary>
-        /// <param name="clienteDto">clientebrabo</param>
+        /// <param name="clienteDto">cliente</param>
         /// <returns>action result</returns>
         [HttpPost] // Cadastramento
         public async Task<IActionResult> CriarCliente([FromBody] ClienteDTO clienteDto)
