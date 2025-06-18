@@ -14,12 +14,16 @@ namespace TesteMuralisApi.Services
             _httpClient = httpClient;
         }
 
-        public async Task<ViaCepResponse> BuscarEnderecoPorCep(string cep)
+        public async Task<ViaCepResponse?> BuscarEnderecoPorCep(string cep)
         {
             var url = $"https://viacep.com.br/ws/{cep}/json/";
             var response = await _httpClient.GetFromJsonAsync<ViaCepResponse>(url);
 
-            return response!;
+            if (response == null || response.Cep == null)
+                return null;
+
+            return response;
         }
+
     }
 }
