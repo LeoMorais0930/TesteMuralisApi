@@ -12,5 +12,4 @@ namespace TesteMuralisApi.Data
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
     }
-
 }

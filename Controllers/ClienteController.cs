@@ -27,26 +27,26 @@ public class ClienteController : ControllerBase
     public async Task<IActionResult> CriarCliente([FromBody] ClienteDTO clienteDto)
     {
         var cliente = await MapearCliente(clienteDto);
-        cliente.DataCadastro = DateTime.UtcNow;
+        cliente.DataCadastro = DateTime.UtcNow.ToString();
 
         _context.Clientes.Add(cliente);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(ObterCliente), new { id = cliente.Id }, _mapper.Map<ClienteDTO>(cliente));
+        return CreatedAtAction(nameof(ObterCliente), new { id = cliente.Id }, _mapper.Map<ClienteResponseDTO>(cliente));
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> ObterCliente(int id)
     {
-        var cliente = await BuscarClienteCompleto(id);
-        return cliente == null ? NotFound() : Ok(_mapper.Map<ClienteDTO>(cliente));
+        var cliente = await BuscarClientePorId(id);
+        return cliente == null ? NotFound($"Cliente com ID ({id}) não encontrado") : Ok(_mapper.Map<ClienteResponseDTO>(cliente));
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> ExcluirCliente(int id)
     {
-        var cliente = await BuscarClienteCompleto(id);
-        if (cliente == null) return NotFound();
+        var cliente = await BuscarClientePorId(id);
+        if (cliente == null) return NotFound($"Cliente com ID ({id}) não encontrado");
 
         _context.Clientes.Remove(cliente);
         await _context.SaveChangesAsync();
@@ -58,63 +58,80 @@ public class ClienteController : ControllerBase
     public async Task<IActionResult> ListarClientes()
     {
         var clientes = await _context.Clientes
-            .Include(c => c.Endereco)
+            .Include(c => c.Enderecos)
             .Include(c => c.Contatos)
             .ToListAsync();
 
-        return Ok(_mapper.Map<List<ClienteDTO>>(clientes));
+        return Ok(_mapper.Map<List<ClienteResponseDTO>>(clientes));
     }
 
     [HttpGet("pesquisa")]
-    public async Task<IActionResult> PesquisarClientes([FromQuery] string nome)
+    public async Task<IActionResult> PesquisarClientes([FromQuery] string? nome)
     {
+        if (string.IsNullOrWhiteSpace(nome))
+        {
+            return BadRequest("O parâmetro 'nome' não pode ser vazio.");
+        }
+
         var clientes = await _context.Clientes
-            .Include(c => c.Endereco)
+            .Include(c => c.Enderecos)
             .Include(c => c.Contatos)
-            .Where(c => EF.Functions.Like(c.Nome, $"%{nome}%"))
+            .Where(c => c.Nome.ToLower().Contains(nome.ToLower()))
             .ToListAsync();
 
-        return Ok(_mapper.Map<List<ClienteDTO>>(clientes));
+        return Ok(_mapper.Map<List<ClienteResponseDTO>>(clientes));
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> AtualizarCliente(int id, [FromBody] ClienteDTO clienteDto)
     {
-        var cliente = await BuscarClienteCompleto(id);
+        var cliente = await BuscarClientePorId(id);
         if (cliente == null) return NotFound();
 
         cliente.Nome = clienteDto.Nome;
-        cliente.Endereco = await MapearEndereco(clienteDto.Endereco);
+        cliente.Enderecos = await MapearEndereco(clienteDto.Enderecos);
         cliente.Contatos = _mapper.Map<List<Contato>>(clienteDto.Contatos);
 
         await _context.SaveChangesAsync();
 
-        return Ok(_mapper.Map<ClienteDTO>(cliente));
+        return Ok(_mapper.Map<ClienteResponseDTO>(cliente));
     }
 
     private async Task<Cliente> MapearCliente(ClienteDTO dto)
     {
         var cliente = _mapper.Map<Cliente>(dto);
-        cliente.Endereco = await MapearEndereco(dto.Endereco);
+        cliente.Enderecos = await MapearEndereco(dto.Enderecos);
         return cliente;
     }
 
-    private async Task<Endereco> MapearEndereco(EnderecoDTO dto)
+    private async Task<List<Endereco>> MapearEndereco(List<EnderecoDTO> enderecosDto)
     {
-        var viaCep = await _viaCep.BuscarEnderecoPorCep(dto.Cep);
-        return new Endereco
+        List<Endereco> listaEnderecosRetorno = new List<Endereco>();
+
+        foreach (EnderecoDTO dto in enderecosDto)
         {
-            Cep = dto.Cep,
-            Numero = dto.Numero,
-            Complemento = dto.Complemento,
-            Logradouro = viaCep.Logradouro,
-            Cidade = viaCep.Localidade
-        };
+            var viaCep = await _viaCep.BuscarEnderecoPorCep(dto.Cep);
+
+            if (viaCep == null)
+            {
+                throw new Exception($"Erro ao buscar endereço para o CEP na API ViaCep: {dto.Cep}");
+            }
+
+            listaEnderecosRetorno.Add(new Endereco
+            {
+                Cep = dto.Cep,
+                Numero = dto.Numero,
+                Complemento = dto.Complemento,
+                Logradouro = viaCep.Logradouro,
+                Cidade = viaCep.Localidade
+            });
+        }
+        return listaEnderecosRetorno;
     }
 
-    private Task<Cliente?> BuscarClienteCompleto(int id) =>
+    private Task<Cliente?> BuscarClientePorId(int id) =>
         _context.Clientes
-            .Include(c => c.Endereco)
+            .Include(c => c.Enderecos)
             .Include(c => c.Contatos)
             .FirstOrDefaultAsync(c => c.Id == id);
 }

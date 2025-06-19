@@ -11,6 +11,8 @@ namespace TesteMuralisApi.Mapper
             CreateMap<ClienteDTO, Cliente>().ReverseMap();
             CreateMap<ContatoDTO, Contato>().ReverseMap();
             CreateMap<EnderecoDTO, Endereco>().ReverseMap();
+            CreateMap<ClienteResponseDTO, Cliente>().ReverseMap(); 
+            CreateMap<EnderecoResponseDTO, Endereco>().ReverseMap();
         }
     }
 }

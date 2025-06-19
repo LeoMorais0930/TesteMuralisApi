@@ -13,5 +13,4 @@
         public string Ddd { get; set; }
         public string Siafi { get; set; }
     }
-
 }
