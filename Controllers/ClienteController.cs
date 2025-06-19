@@ -1,137 +1,60 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using TesteMuralisApi.DTOs;
-using TesteMuralisApi.Models;
 using TesteMuralisApi.Services;
-using TesteMuralisApi.Data;
-using AutoMapper;
-using Microsoft.EntityFrameworkCore;
-
-namespace TesteMuralisApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 public class ClienteController : ControllerBase
 {
-    private readonly AppDbContext _context;
-    private readonly IMapper _mapper;
-    private readonly ViaCepService _viaCep;
+    private readonly ClienteService _clienteService;
 
-    public ClienteController(AppDbContext context, IMapper mapper, ViaCepService viaCep)
+    public ClienteController(ClienteService clienteService)
     {
-        _context = context;
-        _mapper = mapper;
-        _viaCep = viaCep;
+        _clienteService = clienteService;
     }
 
     [HttpPost]
     public async Task<IActionResult> CriarCliente([FromBody] ClienteDTO clienteDto)
     {
-        var cliente = await MapearCliente(clienteDto);
-        cliente.DataCadastro = DateTime.UtcNow.ToString();
-
-        _context.Clientes.Add(cliente);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(ObterCliente), new { id = cliente.Id }, _mapper.Map<ClienteResponseDTO>(cliente));
+        var cliente = await _clienteService.CriarClienteAsync(clienteDto);
+        return CreatedAtAction(nameof(ObterCliente), new { id = cliente.Id }, cliente);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> ObterCliente(int id)
     {
-        var cliente = await BuscarClientePorId(id);
-        return cliente == null ? NotFound($"Cliente com ID ({id}) não encontrado") : Ok(_mapper.Map<ClienteResponseDTO>(cliente));
+        var cliente = await _clienteService.ObterClienteAsync(id);
+        return cliente == null ? NotFound($"Cliente com ID ({id}) não encontrado") : Ok(cliente);
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> ExcluirCliente(int id)
     {
-        var cliente = await BuscarClientePorId(id);
-        if (cliente == null) return NotFound($"Cliente com ID ({id}) não encontrado");
-
-        _context.Clientes.Remove(cliente);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        var sucesso = await _clienteService.ExcluirClienteAsync(id);
+        return sucesso ? NoContent() : NotFound($"Cliente com ID ({id}) não encontrado");
     }
 
     [HttpGet]
     public async Task<IActionResult> ListarClientes()
     {
-        var clientes = await _context.Clientes
-            .Include(c => c.Enderecos)
-            .Include(c => c.Contatos)
-            .ToListAsync();
-
-        return Ok(_mapper.Map<List<ClienteResponseDTO>>(clientes));
+        var clientes = await _clienteService.ListarClientesAsync();
+        return Ok(clientes);
     }
 
     [HttpGet("pesquisa")]
     public async Task<IActionResult> PesquisarClientes([FromQuery] string? nome)
     {
         if (string.IsNullOrWhiteSpace(nome))
-        {
             return BadRequest("O parâmetro 'nome' não pode ser vazio.");
-        }
 
-        var clientes = await _context.Clientes
-            .Include(c => c.Enderecos)
-            .Include(c => c.Contatos)
-            .Where(c => c.Nome.ToLower().Contains(nome.ToLower()))
-            .ToListAsync();
-
-        return Ok(_mapper.Map<List<ClienteResponseDTO>>(clientes));
+        var clientes = await _clienteService.PesquisarClientesPorNomeAsync(nome);
+        return Ok(clientes);
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> AtualizarCliente(int id, [FromBody] ClienteDTO clienteDto)
     {
-        var cliente = await BuscarClientePorId(id);
-        if (cliente == null) return NotFound();
-
-        cliente.Nome = clienteDto.Nome;
-        cliente.Enderecos = await MapearEndereco(clienteDto.Enderecos);
-        cliente.Contatos = _mapper.Map<List<Contato>>(clienteDto.Contatos);
-
-        await _context.SaveChangesAsync();
-
-        return Ok(_mapper.Map<ClienteResponseDTO>(cliente));
+        var cliente = await _clienteService.AtualizarClienteAsync(id, clienteDto);
+        return cliente == null ? NotFound() : Ok(cliente);
     }
-
-    private async Task<Cliente> MapearCliente(ClienteDTO dto)
-    {
-        var cliente = _mapper.Map<Cliente>(dto);
-        cliente.Enderecos = await MapearEndereco(dto.Enderecos);
-        return cliente;
-    }
-
-    private async Task<List<Endereco>> MapearEndereco(List<EnderecoDTO> enderecosDto)
-    {
-        List<Endereco> listaEnderecosRetorno = new List<Endereco>();
-
-        foreach (EnderecoDTO dto in enderecosDto)
-        {
-            var viaCep = await _viaCep.BuscarEnderecoPorCep(dto.Cep);
-
-            if (viaCep == null)
-            {
-                throw new Exception($"Erro ao buscar endereço para o CEP na API ViaCep: {dto.Cep}");
-            }
-
-            listaEnderecosRetorno.Add(new Endereco
-            {
-                Cep = dto.Cep,
-                Numero = dto.Numero,
-                Complemento = dto.Complemento,
-                Logradouro = viaCep.Logradouro,
-                Cidade = viaCep.Localidade
-            });
-        }
-        return listaEnderecosRetorno;
-    }
-
-    private Task<Cliente?> BuscarClientePorId(int id) =>
-        _context.Clientes
-            .Include(c => c.Enderecos)
-            .Include(c => c.Contatos)
-            .FirstOrDefaultAsync(c => c.Id == id);
 }
